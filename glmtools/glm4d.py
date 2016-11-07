@@ -2,6 +2,8 @@
 """
 
 import numpy as np
+import numpy.linalg as npl
+import scipy.stats
 
 from .glm import glm, t_test
 
@@ -27,7 +29,19 @@ def glm_4d(Y, X):
         degrees of freedom due to error.
     """
     # +++your code here+++
-    return
+    Y_2d = Y.reshape((-1, Y.shape[-1])).T
+    X_inv = npl.pinv(X)
+
+    B = X_inv.dot(Y_2d)
+    B_reshape = B.T.reshape((Y.shape[0], Y.shape[1], Y.shape[2], X.shape[1]))
+
+    df = X.shape[0] - npl.matrix_rank(X)
+
+    e = Y_2d - X.dot(B)
+    sigma_2 = np.sum(e ** 2, axis=0) / df
+    sigma_2 = sigma_2.reshape(Y.shape[:-1])
+
+    return B_reshape, sigma_2, df
 
 
 def t_test_3d(c, X, B, sigma_2, df):
@@ -54,4 +68,24 @@ def t_test_3d(c, X, B, sigma_2, df):
         two-tailed probability value for each t statistic.
     """
     # Your code code here
-    return
+
+    B_2d = B.reshape((-1, B.shape[-1]))
+
+    c_b_cov = c.dot(npl.pinv(X.T.dot(X))).dot(c)
+
+    t = c.dot(B_2d.T) / np.sqrt(sigma_2.ravel() * c_b_cov)
+
+    t_dist = scipy.stats.t(df=df)
+
+    p_value = np.zeros(np.prod(B.shape[:-1]))
+
+    # Calculate t values
+    for i in range(len(t)):
+        if t[i] > 0:
+            p_value[i] = 2 * (1 - t_dist.cdf(t[i]))
+        else:
+            p_value[i] = 2 * t_dist.cdf(t[i])
+
+    t = t.reshape(B.shape[:-1])
+
+    return t, p_value
